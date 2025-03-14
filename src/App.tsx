@@ -1,237 +1,208 @@
-import { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
-const App = () => {
-    const [rooms, setRooms] = useState([
-        { id: 1, name: 'Кімната 1', status: 0 },
-        { id: 2, name: 'Кімната 2', status: 0 },
-        { id: 3, name: 'Кімната 3', status: 0 },
-        { id: 4, name: 'Кімната 4', status: 0 },
-        { id: 5, name: 'Кімната 5', status: 0 },
-    ]);
+interface Room {
+    id: number;
+    name: string;
+    imageUrl: string;
+    waterLevel: number;   // рівень води (м)
+    waterSpeed: number;  // швидкість зміни рівня (м/хв)
+}
 
-    const [selectedRoom, setSelectedRoom] = useState({
-        id: 0,
-        name: '',
-        status: 0
-    });
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [currentPage, setCurrentPage] = useState('home');
+interface Conclusion {
+    id: number;
+    name: string;
+    status: string;
+}
 
-    const hasAlarm = rooms.some(room => room.status === 2);
+const App: React.FC = () => {
+    // Хардкоджені дані кімнат
+    const rooms: Room[] = [
+        {
+            id: 1,
+            name: 'Кімната 1',
+            imageUrl: 'public/12_flooded_room.jpg',
+            waterLevel: 1.2,
+            waterSpeed: 0.0,
+        },
+        {
+            id: 2,
+            name: 'Кімната 2',
+            imageUrl: 'public/05_flooded_room.jpg',
+            waterLevel: 0.5,
+            waterSpeed: 0.2,
+        },
+        {
+            id: 3,
+            name: 'Кімната 3',
+            imageUrl: 'public/05_flooded_room_2.jpg',
+            waterLevel: 0.5,
+            waterSpeed: 0.05,
+        },
+        {
+            id: 4,
+            name: 'Кімната 4',
+            imageUrl: 'public/0_room.jpg',
+            waterLevel: 0,
+            waterSpeed: 0,
+        },
+    ];
 
-    const updateRoomStatus = (status: number) => {
-        if (selectedRoom) {
-            const updatedRooms = rooms.map(room =>
-                room.id === selectedRoom.id ? { ...room, status } : room
-            );
-            setRooms(updatedRooms);
-            setIsModalOpen(false);
+    // Стан з висновками (статусами), які поступово додаються
+    const [conclusions, setConclusions] = useState<Conclusion[]>([]);
+
+    // Зберігаємо індекс кімнати, яку будемо додавати наступною
+    const [currentIndex, setCurrentIndex] = useState(0);
+
+    // Стан прогресу (від 1% до 100%)
+    const [progress, setProgress] = useState(1);
+
+    // Визначаємо статус кімнати за хардкодженими правилами
+    const getRoomStatus = (room: Room): string => {
+        const { waterLevel, waterSpeed } = room;
+        // Правила:
+        // 1. Якщо waterLevel > 1 -> 'Тривога'
+        // 2. Якщо 0 < waterLevel < 1 і waterSpeed > 0.1 -> 'Тривога'
+        // 3. Якщо 0 < waterLevel < 1 і waterSpeed < 0.1 -> 'Попередження'
+        // 4. Якщо waterLevel === 0 і waterSpeed === 0 -> 'Все добре'
+        // 5. Інакше -> 'Попередження'
+        if (waterLevel > 1) {
+            return 'Потрібна евакуація';
+        } else if (waterLevel > 0 && waterLevel < 1 && waterSpeed > 0.1) {
+            return 'Потрібна евакуація';
+        } else if (waterLevel > 0 && waterLevel < 1 && waterSpeed < 0.1) {
+            return 'Потрібно звернути увагу';
+        } else if (waterLevel === 0 && waterSpeed === 0) {
+            return 'Все добре';
+        } else {
+            return 'Потрібно звернути увагу';
         }
     };
 
-    // Отримання кольору статусу
-    const getStatusColor = (status: number) => {
-        switch(status) {
-            case 0: return 'bg-green-500';
-            case 1: return 'bg-yellow-500';
-            case 2: return 'bg-red-500';
-            default: return 'bg-gray-500';
+    // Колір фону для кожного статусу
+    const getStatusColor = (status: string): string => {
+        switch (status) {
+            case 'Потрібна евакуація':
+                return 'bg-red-500';
+            case 'Все добре':
+                return 'bg-green-500';
+            case 'Потрібно звернути увагу':
+                return 'bg-yellow-500';
+            default:
+                return 'bg-gray-500';
         }
     };
 
-    // Отримання назви статусу
-    const getStatusName = (status: number) => {
-        switch(status) {
-            case 0: return 'Все добре';
-            case 1: return 'Потрібно звернути увагу';
-            case 2: return 'Тривога';
-            default: return 'Невідомо';
+    // Покрокове додавання статусів: що 1 секунду додаємо по одній кімнаті
+    useEffect(() => {
+        if (currentIndex < rooms.length) {
+            const timer = setTimeout(() => {
+                const room = rooms[currentIndex];
+                const status = getRoomStatus(room);
+                setConclusions((prev) => [
+                    ...prev,
+                    { id: room.id, name: room.name, status },
+                ]);
+                setCurrentIndex((prevIndex) => prevIndex + 1);
+            }, 1000);
+
+            return () => clearTimeout(timer);
         }
-    };
+    }, [currentIndex]);
 
-    // Компонент головної сторінки
-    const HomePage = () => (
-        <div className="p-6">
-            <h1 className="text-2xl font-bold mb-6">Моніторинг затоплення приміщень</h1>
+    // Налаштування загальної тривалості (враховуємо, що кожна кімната дає 1 секунду таймауту)
+    const totalTime = rooms.length * 1000; // у мілісекундах (4 кімнати -> 4 сек)
+    // Кількість кроків, які будемо здійснювати, щоб заповнити прогрес з 1% до 100%
+    const steps = 99; // оскільки починаємо з 1, а завершити хочемо на 100
+    const stepTime = totalTime / steps;
 
-            {hasAlarm && (
-                <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-                    <p className="font-bold">⚠️ УВАГА! В одному або кількох приміщеннях виявлено тривожний стан!</p>
-                </div>
-            )}
+    // Плавний рух Progress Bar від 1% до 100%
+    useEffect(() => {
+        let currentProgress = 1;
+        setProgress(1);
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {rooms.map(room => (
+        const interval = setInterval(() => {
+            currentProgress++;
+            // Якщо дійшли до 100%, зупиняємо
+            if (currentProgress >= 100) {
+                currentProgress = 100;
+                clearInterval(interval);
+            }
+            setProgress(currentProgress);
+        }, stepTime);
+
+        return () => clearInterval(interval);
+        // eslint-disable-next-line
+    }, []);
+
+    return (
+        <div className="min-h-screen bg-gray-100 p-6">
+            <h1 className="text-3xl font-bold mb-6">Моніторинг рівня затоплення</h1>
+
+            {/* Відображення карток кімнат у верхній частині */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                {rooms.map((room) => (
                     <div
                         key={room.id}
-                        className="border rounded p-4 cursor-pointer hover:bg-gray-50"
-                        onClick={() => {
-                            setSelectedRoom(room);
-                            setIsModalOpen(true);
-                        }}
+                        className="bg-white shadow-md rounded p-4 flex flex-col items-center"
                     >
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-lg font-medium">{room.name}</h2>
-                            <div className={`${getStatusColor(room.status)} w-4 h-4 rounded-full`}></div>
-                        </div>
-                        <p className="mt-2">{getStatusName(room.status)}</p>
+                        <img
+                            src={room.imageUrl}
+                            alt={room.name}
+                            className="w-full h-48 object-cover rounded mb-4"
+                        />
+                        <h2 className="text-lg font-semibold mb-2">{room.name}</h2>
+                        <p className="text-sm">
+                            <strong>Рівень води:</strong> {room.waterLevel} м
+                        </p>
+                        <p className="text-sm mb-2">
+                            <strong>Швидкість зміни:</strong> {room.waterSpeed} м/хв
+                        </p>
                     </div>
                 ))}
             </div>
-        </div>
-    );
 
-    // Компонент сторінки інформації
-    const InfoPage = () => (
-        <div className="p-6">
-            <h1 className="text-2xl font-bold mb-6">Інформація про систему</h1>
-            <div className="bg-gray-50 p-4 rounded border">
-                <h2 className="text-lg font-medium mb-2">Про систему моніторингу</h2>
-                <p className="mb-4">
-                    Система моніторингу затоплення приміщень дозволяє оперативно відстежувати стан різних приміщень
-                    та реагувати на потенційні проблеми.
-                </p>
-                <h3 className="font-medium mb-2">Типи станів:</h3>
-                <ul className="list-disc pl-5 mb-4">
-                    <li className="mb-1">
-                        <span className="inline-block w-3 h-3 bg-green-500 rounded-full mr-2"></span>
-                        <strong>Все добре</strong> - приміщення в нормальному стані
-                    </li>
-                    <li className="mb-1">
-                        <span className="inline-block w-3 h-3 bg-yellow-500 rounded-full mr-2"></span>
-                        <strong>Потрібно звернути увагу</strong> - виявлено незначні відхилення
-                    </li>
-                    <li className="mb-1">
-                        <span className="inline-block w-3 h-3 bg-red-500 rounded-full mr-2"></span>
-                        <strong>Тривога</strong> - виявлено критичну ситуацію, потрібне негайне втручання
-                    </li>
+            {/* Висновки */}
+            <div className="bg-white shadow-md rounded p-4 mb-4">
+                <h2 className="text-xl font-bold mb-4">Висновки</h2>
+                <ul className="space-y-2">
+                    {conclusions.map((conclusion) => {
+                        const colorClass = getStatusColor(conclusion.status);
+                        const textColor =
+                            colorClass === 'bg-red-500'
+                                ? 'text-red-600'
+                                : colorClass === 'bg-green-500'
+                                    ? 'text-green-600'
+                                    : 'text-yellow-600';
+
+                        return (
+                            <li key={conclusion.id}>
+                                <p>
+                                    <strong>{conclusion.name}:</strong>{' '}
+                                    <span className={`font-semibold ${textColor}`}>
+                    {conclusion.status}
+                  </span>
+                                </p>
+                            </li>
+                        );
+                    })}
                 </ul>
             </div>
-        </div>
-    );
 
-    // Компонент сторінки контактів
-    const ContactPage = () => (
-        <div className="p-6">
-            <h1 className="text-2xl font-bold mb-6">Контакти для екстрених ситуацій</h1>
-            <div className="bg-gray-50 p-4 rounded border">
-                <div className="mb-4">
-                    <h2 className="text-lg font-medium">Аварійна служба</h2>
-                    <p className="text-lg">📞 0-800-123-456</p>
+            {/* Прогрес завантаження (Progress Bar) */}
+            <div className="bg-white shadow-md rounded p-4">
+                <h2 className="text-xl font-bold mb-4">Завантаження висновків</h2>
+                <div className="relative w-full h-4 bg-gray-300 rounded mb-2 overflow-hidden">
+                    {/* Заповнена частина progress bar */}
+                    <div
+                        className="absolute left-0 top-0 h-4 bg-blue-500"
+                        style={{
+                            width: `${progress}%`,
+                            transition: 'width 0.1s linear'  // робимо плавний перехід
+                        }}
+                    ></div>
                 </div>
-                <div className="mb-4">
-                    <h2 className="text-lg font-medium">Технічна підтримка</h2>
-                    <p className="text-lg">📞 0-800-999-000</p>
-                </div>
-                <div>
-                    <h2 className="text-lg font-medium">Електронна пошта</h2>
-                    <p className="text-lg">✉️ support@floodmonitor.com</p>
-                </div>
+                <p className="text-center">{progress}%</p>
             </div>
-        </div>
-    );
-
-    // Компонент модального вікна
-    const StatusModal = () => {
-        if (!selectedRoom) return null;
-
-        return (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-                <div className="bg-white rounded-lg p-6 max-w-md w-full">
-                    <h2 className="text-xl font-bold mb-4">{selectedRoom.name} - Статус</h2>
-
-                    <div className="mb-6">
-                        <p className="mb-2 font-medium">Поточний статус:</p>
-                        <div className="flex items-center">
-                            <div className={`${getStatusColor(selectedRoom.status)} w-4 h-4 rounded-full mr-2`}></div>
-                            <span>{getStatusName(selectedRoom.status)}</span>
-                        </div>
-                    </div>
-
-                    <div className="mb-6">
-                        <p className="mb-2 font-medium">Змінити статус:</p>
-                        <div className="grid grid-cols-1 gap-2">
-                            <button
-                                className="p-2 bg-green-100 hover:bg-green-200 rounded flex items-center"
-                                onClick={() => updateRoomStatus(0)}
-                            >
-                                <div className="bg-green-500 w-4 h-4 rounded-full mr-2"></div>
-                                Все добре
-                            </button>
-
-                            <button
-                                className="p-2 bg-yellow-100 hover:bg-yellow-200 rounded flex items-center"
-                                onClick={() => updateRoomStatus(1)}
-                            >
-                                <div className="bg-yellow-500 w-4 h-4 rounded-full mr-2"></div>
-                                Потрібно звернути увагу
-                            </button>
-
-                            <button
-                                className="p-2 bg-red-100 hover:bg-red-200 rounded flex items-center"
-                                onClick={() => updateRoomStatus(2)}
-                            >
-                                <div className="bg-red-500 w-4 h-4 rounded-full mr-2"></div>
-                                Тривога
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="flex justify-end">
-                        <button
-                            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded"
-                            onClick={() => setIsModalOpen(false)}
-                        >
-                            Закрити
-                        </button>
-                    </div>
-                </div>
-            </div>
-        );
-    };
-
-    return (
-        <div className="min-h-screen bg-gray-100">
-            {/* Навігація */}
-            <nav className="bg-white shadow">
-                <div className="max-w-7xl mx-auto px-4">
-                    <div className="flex justify-between h-16">
-                        <div className="flex space-x-4 items-center">
-                            <div className="font-bold text-lg">Система моніторингу</div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <button
-                                className={`px-3 py-2 rounded ${currentPage === 'home' ? 'bg-blue-100 text-blue-800' : 'hover:bg-gray-100'}`}
-                                onClick={() => setCurrentPage('home')}
-                            >
-                                Головна
-                            </button>
-                            <button
-                                className={`px-3 py-2 rounded ${currentPage === 'info' ? 'bg-blue-100 text-blue-800' : 'hover:bg-gray-100'}`}
-                                onClick={() => setCurrentPage('info')}
-                            >
-                                Інформація
-                            </button>
-                            <button
-                                className={`px-3 py-2 rounded ${currentPage === 'contact' ? 'bg-blue-100 text-blue-800' : 'hover:bg-gray-100'}`}
-                                onClick={() => setCurrentPage('contact')}
-                            >
-                                Контакти
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </nav>
-
-            {/* Основний контент */}
-            <main className="max-w-7xl mx-auto bg-white shadow rounded-lg my-6">
-                {currentPage === 'home' && <HomePage />}
-                {currentPage === 'info' && <InfoPage />}
-                {currentPage === 'contact' && <ContactPage />}
-            </main>
-
-            {/* Модальне вікно */}
-            {isModalOpen && <StatusModal />}
         </div>
     );
 };
