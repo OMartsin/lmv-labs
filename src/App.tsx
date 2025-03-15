@@ -1,210 +1,290 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useRef, useEffect } from "react";
 
-interface Room {
+interface BusType {
     id: number;
     name: string;
+    capacity: number;
+    kMax: number;
     imageUrl: string;
-    waterLevel: number;   // рівень води (м)
-    waterSpeed: number;  // швидкість зміни рівня (м/хв)
 }
 
-interface Conclusion {
-    id: number;
-    name: string;
-    status: string;
+const busTypes: BusType[] = [
+    {
+        id: 1,
+        name: "Mercedes Sprinter",
+        capacity: 12,
+        kMax: 12,
+        imageUrl: "/public/sprinter.png"
+    },
+    {
+        id: 2,
+        name: "БАЗ «Волошка»",
+        capacity: 15,
+        kMax: 5,
+        imageUrl: "/public/voloshka.png"
+    },
+    {
+        id: 3,
+        name: "«Богдан» А-064",
+        capacity: 17,
+        kMax: 6,
+        imageUrl: "/public/bogdan-a064.png"
+    },
+    {
+        id: 4,
+        name: "AeroLAZ",
+        capacity: 17,
+        kMax: 8,
+        imageUrl: "/public/aerolaz.png"
+    },
+    {
+        id: 5,
+        name: "«Богдан» А-092",
+        capacity: 18,
+        kMax: 2,
+        imageUrl: "/public/bogdan-a092.png"
+    },
+    {
+        id: 6,
+        name: "«Богдан» А-091",
+        capacity: 21,
+        kMax: 5,
+        imageUrl: "/public/bogdan-a091.png"
+    },
+    {
+        id: 7,
+        name: "ЗАЗ A10C I-Ван",
+        capacity: 23,
+        kMax: 2,
+        imageUrl: "/public/zaz.png"
+    }
+];
+
+interface BestCombination {
+    leftover: number;
+    busesUsed: number;
+    combination: number[];
 }
 
 const App: React.FC = () => {
-    // Хардкоджені дані кімнат
-    const rooms: Room[] = [
-        {
-            id: 1,
-            name: 'Кімната 1',
-            imageUrl: 'public/12_flooded_room.jpg',
-            waterLevel: 1.2,
-            waterSpeed: 0.0,
-        },
-        {
-            id: 2,
-            name: 'Кімната 2',
-            imageUrl: 'public/05_flooded_room.jpg',
-            waterLevel: 0.5,
-            waterSpeed: 0.2,
-        },
-        {
-            id: 3,
-            name: 'Кімната 3',
-            imageUrl: 'public/05_flooded_room_2.jpg',
-            waterLevel: 0.5,
-            waterSpeed: 0.05,
-        },
-        {
-            id: 4,
-            name: 'Кімната 4',
-            imageUrl: 'public/0_room.jpg',
-            waterLevel: 0,
-            waterSpeed: 0,
-        },
-    ];
+    const [peopleCount, setPeopleCount] = useState<number>(0);
+    const [error, setError] = useState<string>("");
+    const [bestCombo, setBestCombo] = useState<BestCombination | null>(null);
 
-    // Стан з висновками (статусами), які поступово додаються
-    const [conclusions, setConclusions] = useState<Conclusion[]>([]);
+    const busWidth = 100;
+    const busHeight = 70;
+    const margin = 4;
+    const canvasWidth = 1230;
 
-    // Зберігаємо індекс кімнати, яку будемо додавати наступною
-    const [currentIndex, setCurrentIndex] = useState(0);
+    const [canvasHeight, setCanvasHeight] = useState<number>(250);
 
-    // Стан прогресу (від 1% до 100%)
-    const [progress, setProgress] = useState(1);
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-    // Визначаємо статус кімнати за хардкодженими правилами
-    const getRoomStatus = (room: Room): string => {
-        const { waterLevel, waterSpeed } = room;
-        // Правила:
-        // 1. Якщо waterLevel > 1 -> 'Тривога'
-        // 2. Якщо 0 < waterLevel < 1 і waterSpeed > 0.1 -> 'Тривога'
-        // 3. Якщо 0 < waterLevel < 1 і waterSpeed < 0.1 -> 'Попередження'
-        // 4. Якщо waterLevel === 0 і waterSpeed === 0 -> 'Все добре'
-        // 5. Інакше -> 'Попередження'
-        if (waterLevel > 1) {
-            return 'Потрібна евакуація';
-        } else if (waterLevel > 0 && waterLevel < 1 && waterSpeed > 0.1) {
-            return 'Потрібна евакуація';
-        } else if (waterLevel > 0 && waterLevel < 1 && waterSpeed < 0.1) {
-            return 'Потрібно звернути увагу';
-        } else if (waterLevel === 0 && waterSpeed === 0) {
-            return 'Все добре';
+    const handleCalculate = () => {
+        setError("");
+        if (peopleCount <= 0) {
+            setError("Введіть додатне число пасажирів.");
+            setBestCombo(null);
+            return;
+        }
+        const result = findBestCombination(peopleCount, busTypes);
+        if (!result) {
+            setError("Неможливо перевезти таку кількість пасажирів із наявним транспортом.");
+            setBestCombo(null);
         } else {
-            return 'Потрібно звернути увагу';
+            setBestCombo(result);
         }
     };
 
-    // Колір фону для кожного статусу
-    const getStatusColor = (status: string): string => {
-        switch (status) {
-            case 'Потрібна евакуація':
-                return 'bg-red-500';
-            case 'Все добре':
-                return 'bg-green-500';
-            case 'Потрібно звернути увагу':
-                return 'bg-yellow-500';
-            default:
-                return 'bg-gray-500';
-        }
-    };
-
-    // Покрокове додавання статусів: що 1 секунду додаємо по одній кімнаті
     useEffect(() => {
-        if (currentIndex < rooms.length) {
-            const timer = setTimeout(() => {
-                const room = rooms[currentIndex];
-                const status = getRoomStatus(room);
-                setConclusions((prev) => [
-                    ...prev,
-                    { id: room.id, name: room.name, status },
-                ]);
-                setCurrentIndex((prevIndex) => prevIndex + 1);
-            }, 1000);
+        if (!canvasRef.current) return;
+        const ctx = canvasRef.current.getContext("2d");
+        if (!ctx) return;
 
-            return () => clearTimeout(timer);
-        }
-    }, [currentIndex]);
+        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
-    // Налаштування загальної тривалості (враховуємо, що кожна кімната дає 1 секунду таймауту)
-    const totalTime = rooms.length * 1000; // у мілісекундах (4 кімнати -> 4 сек)
-    // Кількість кроків, які будемо здійснювати, щоб заповнити прогрес з 1% до 100%
-    const steps = 99; // оскільки починаємо з 1, а завершити хочемо на 100
-    const stepTime = totalTime / steps;
+        if (!bestCombo) return;
 
-    // Плавний рух Progress Bar від 1% до 100%
-    useEffect(() => {
-        let currentProgress = 1;
-        setProgress(1);
+        const totalBusesUsed = bestCombo.combination.reduce((acc, c) => acc + c, 0);
 
-        const interval = setInterval(() => {
-            currentProgress++;
-            // Якщо дійшли до 100%, зупиняємо
-            if (currentProgress >= 100) {
-                currentProgress = 100;
-                clearInterval(interval);
+        const rowCapacity = Math.floor(canvasWidth / (busWidth + margin));
+        const lines = Math.ceil(totalBusesUsed / rowCapacity);
+        // Обчислюємо необхідну висоту (з урахуванням відступів)
+        const neededHeight = lines * (busHeight + margin) + margin;
+
+        // Обмежуємо висоту 250 px
+        const finalHeight = neededHeight > 250 ? neededHeight : 250;
+        setCanvasHeight(finalHeight);
+
+        // Очищаємо і перевстановлюємо розмір canvas
+        canvasRef.current.width = canvasWidth;
+        canvasRef.current.height = finalHeight;
+        ctx.clearRect(0, 0, canvasWidth, finalHeight);
+
+        let xPos = margin;
+        let yPos = margin;
+
+        // Малюємо всі автобуси
+        const drawAllBuses = async () => {
+            for (let i = 0; i < busTypes.length; i++) {
+                const countUsed = bestCombo.combination[i];
+                if (countUsed === 0) continue;
+
+                for (let c = 0; c < countUsed; c++) {
+                    const img = await loadImage(busTypes[i].imageUrl);
+                    ctx.drawImage(img, xPos, yPos, busWidth, busHeight);
+
+                    xPos += busWidth + margin;
+                    if (xPos + busWidth + margin > canvasWidth) {
+                        xPos = margin;
+                        yPos += busHeight + margin;
+                    }
+                }
             }
-            setProgress(currentProgress);
-        }, stepTime);
-
-        return () => clearInterval(interval);
-        // eslint-disable-next-line
-    }, []);
+        };
+        drawAllBuses();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [bestCombo]);
 
     return (
-        <div className="min-h-screen bg-gray-100 p-6">
-            <h1 className="text-3xl font-bold mb-6">Моніторинг рівня затоплення</h1>
+        <div className="max-w-[1300px] mx-auto p-4">
+            <h1 className="text-3xl font-bold mb-6">Оптимальний розподіл автобусів</h1>
 
-            {/* Відображення карток кімнат у верхній частині */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                {rooms.map((room) => (
-                    <div
-                        key={room.id}
-                        className="bg-white shadow-md rounded p-4 flex flex-col items-center"
-                    >
-                        <img
-                            src={room.imageUrl}
-                            alt={room.name}
-                            className="w-full h-48 object-cover rounded mb-4"
-                        />
-                        <h2 className="text-lg font-semibold mb-2">{room.name}</h2>
-                        <p className="text-sm">
-                            <strong>Рівень води:</strong> {room.waterLevel} м
-                        </p>
-                        <p className="text-sm mb-2">
-                            <strong>Швидкість зміни:</strong> {room.waterSpeed} м/хв
-                        </p>
-                    </div>
-                ))}
+            <div className="bg-white shadow rounded p-4 mb-4">
+                <label className="block text-lg font-semibold mb-2">
+                    Кількість людей, яких потрібно перевезти:
+                </label>
+                <input
+                    type="number"
+                    value={peopleCount}
+                    onChange={(e) => setPeopleCount(Number(e.target.value))}
+                    className="border border-gray-300 rounded p-2 w-full mb-4"
+                />
+                <button
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    onClick={handleCalculate}
+                >
+                    Розрахувати
+                </button>
             </div>
 
-            {/* Висновки */}
-            <div className="bg-white shadow-md rounded p-4 mb-4">
-                <h2 className="text-xl font-bold mb-4">Висновки</h2>
-                <ul className="space-y-2">
-                    {conclusions.map((conclusion) => {
-                        const colorClass = getStatusColor(conclusion.status);
-                        const textColor =
-                            colorClass === 'bg-red-500'
-                                ? 'text-red-600'
-                                : colorClass === 'bg-green-500'
-                                    ? 'text-green-600'
-                                    : 'text-yellow-600';
-
-                        return (
-                            <li key={conclusion.id}>
-                                <p>
-                                    <strong>{conclusion.name}:</strong>{' '}
-                                    <span className={`font-semibold ${textColor}`}>
-                    {conclusion.status}
-                  </span>
-                                </p>
-                            </li>
-                        );
-                    })}
-                </ul>
-            </div>
-
-            {/* Прогрес завантаження (Progress Bar) */}
-            <div className="bg-white shadow-md rounded p-4">
-                <h2 className="text-xl font-bold mb-4">Завантаження висновків</h2>
-                <div className="relative w-full h-4 bg-gray-300 rounded mb-2 overflow-hidden">
-                    {/* Заповнена частина progress bar */}
-                    <div
-                        className="absolute left-0 top-0 h-4 bg-blue-500"
-                        style={{
-                            width: `${progress}%`,
-                            transition: 'width 0.1s linear'  // робимо плавний перехід
-                        }}
-                    ></div>
+            {error && (
+                <div className="bg-red-100 text-red-600 p-3 border border-red-400 rounded mb-4">
+                    {error}
                 </div>
-                <p className="text-center">{progress}%</p>
-            </div>
+            )}
+
+            {bestCombo && (
+                <div className="bg-white shadow rounded p-4">
+                    <h2 className="text-2xl font-bold mb-4">Результати</h2>
+                    <p className="mb-2">
+                        Використано автобусів: <strong>{bestCombo.busesUsed}</strong>
+                    </p>
+                    <p className="mb-2">
+                        Залишилось порожніх місць: <strong>{bestCombo.leftover}</strong>
+                    </p>
+
+                    <div
+                        className={`mb-4 ${canvasHeight > 250 ? "overflow-y-auto" : ""}`}
+                        style={{ width: canvasWidth, maxHeight: 250, border: "1px solid #ccc" }}
+                    >
+                        <canvas ref={canvasRef} />
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full border">
+                            <thead className="bg-gray-100">
+                            <tr>
+                                <th className="px-3 py-2 border">№</th>
+                                <th className="px-3 py-2 border">Тип автобуса</th>
+                                <th className="px-3 py-2 border">Використано автобусів</th>
+                                <th className="px-3 py-2 border">Сумарно зайнятих місць</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {busTypes.map((bus, i) => {
+                                const countUsed = bestCombo.combination[i];
+                                if (countUsed === 0) return null;
+                                return (
+                                    <tr key={bus.id}>
+                                        <td className="px-3 py-2 border">{i + 1}</td>
+                                        <td className="px-3 py-2 border">{bus.name}</td>
+                                        <td className="px-3 py-2 border">{countUsed}</td>
+                                        <td className="px-3 py-2 border">{countUsed * bus.capacity}</td>
+                                    </tr>
+                                );
+                            })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.src = src;
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+    });
+}
+
+/**
+ * Пошук оптимальної комбінації автобусів:
+ * - Сумарна місткість >= peopleCount
+ * - Мінімальний залишок місць
+ * - При однаковому залишку – мінімальна кількість автобусів
+ */
+function findBestCombination(
+    peopleCount: number,
+    busTypes: BusType[]
+): BestCombination | null {
+    let best: BestCombination | null = null;
+
+    const maxCounts = busTypes.map((b) => b.kMax);
+    const capacities = busTypes.map((b) => b.capacity);
+
+    function backtrack(
+        i: number,
+        used: number[],
+        seatsSoFar: number,
+        busesSoFar: number
+    ) {
+        if (i === busTypes.length) {
+            if (seatsSoFar >= peopleCount) {
+                const leftover = seatsSoFar - peopleCount;
+                if (
+                    !best ||
+                    leftover < best.leftover ||
+                    (leftover === best.leftover && busesSoFar < best.busesUsed)
+                ) {
+                    best = {
+                        leftover,
+                        busesUsed: busesSoFar,
+                        combination: [...used]
+                    };
+                }
+            }
+            return;
+        }
+
+        const limit = maxCounts[i];
+        const cap = capacities[i];
+
+        for (let count = 0; count <= limit; count++) {
+            used[i] = count;
+            const newSeats = seatsSoFar + count * cap;
+            const newBuses = busesSoFar + count;
+            backtrack(i + 1, used, newSeats, newBuses);
+            used[i] = 0;
+        }
+    }
+
+    backtrack(0, Array(busTypes.length).fill(0), 0, 0);
+    return best;
+}
 
 export default App;
