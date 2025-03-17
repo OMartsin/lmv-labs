@@ -167,11 +167,11 @@ const translateRainLevel = (level: Scenario['rainLevel']) => {
 const getStatusColor = (status: string) => {
     switch (status) {
         case 'Евакуювати':
-            return 'bg-red-500';
+            return 'bg-pink-600';
         case 'Посилити увагу':
-            return 'bg-yellow-500';
+            return 'bg-orange-500';
         case 'Не турбуватися':
-            return 'bg-green-500';
+            return 'bg-teal-500';
         default:
             return 'bg-gray-500';
     }
@@ -186,27 +186,22 @@ const App: React.FC = () => {
     const totalTime = scenarios.length * SCENARIO_DURATION;
     const steps = 99;
     const stepTime = totalTime / steps;
-
     useEffect(() => {
         let timer: ReturnType<typeof setTimeout> | undefined;
         if (isPlaying && currentIndex < scenarios.length) {
             timer = setTimeout(() => {
                 const scenario = scenarios[currentIndex];
-                setConclusions((prev) => [
-                    ...prev,
-                    { id: scenario.id, name: scenario.name, status: scenario.conclusion },
-                ]);
-                setCurrentIndex((prevIndex) => prevIndex + 1);
+                setConclusions(prev => [...prev, { id: scenario.id, name: scenario.name, status: scenario.conclusion }]);
+                setCurrentIndex(prev => prev + 1);
             }, SCENARIO_DURATION);
         }
         return () => {
             if (timer) clearTimeout(timer);
         };
     }, [isPlaying, currentIndex]);
-
     useEffect(() => {
         if (!isPlaying) return;
-        let currentProgress = Math.round(currentIndex / scenarios.length * 100);
+        let currentProgress = Math.round((currentIndex / scenarios.length) * 100);
         const interval = setInterval(() => {
             currentProgress++;
             if (currentProgress >= 100) {
@@ -217,7 +212,6 @@ const App: React.FC = () => {
         }, stepTime);
         return () => clearInterval(interval);
     }, [currentIndex, isPlaying, stepTime]);
-
     const handlePlay = () => {
         if (currentIndex >= scenarios.length) {
             setConclusions([]);
@@ -226,128 +220,73 @@ const App: React.FC = () => {
         }
         setIsPlaying(true);
     };
-
     const handlePause = () => {
         setIsPlaying(false);
     };
-
-    const currentScenario: Scenario | undefined = currentIndex < scenarios.length
-        ? scenarios[currentIndex]
-        : undefined;
-
+    const currentScenario: Scenario | undefined = currentIndex < scenarios.length ? scenarios[currentIndex] : undefined;
     return (
-        <div className="min-h-screen bg-gray-100 p-6">
-            <h1 className="text-3xl font-bold mb-4">Моніторинг погодних умов</h1>
-            <div className="flex space-x-2 mb-6">
-                <button
-                    onClick={handlePlay}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                >
-                    Play
-                </button>
-                <button
-                    onClick={handlePause}
-                    className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
-                >
-                    Pause
-                </button>
+        <div className="min-h-screen bg-gradient-to-br from-indigo-100 to-purple-100 p-8">
+            <h1 className="text-4xl font-extrabold text-indigo-900 mb-6 text-center">Симуляція погодних умов</h1>
+            <div className="flex justify-center space-x-4 mb-8">
+                <button onClick={handlePlay} className="px-6 py-3 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 transition-all duration-200">Play</button>
+                <button onClick={handlePause} className="px-6 py-3 bg-gray-700 text-white rounded-lg shadow-md hover:bg-gray-800 transition-all duration-200">Pause</button>
             </div>
-
             {currentScenario ? (
-                <div className="bg-white shadow-md rounded p-4 flex flex-col items-center mb-8">
-                    <h2 className="text-xl font-bold mb-4">{`Ситуація ${currentIndex + 1}`}</h2>
-                    <div className="flex flex-wrap gap-4 justify-center">
+                <div className="bg-white border border-indigo-200 rounded-lg shadow-lg p-6 flex flex-col items-center mb-8">
+                    <h2 className="text-2xl font-bold text-indigo-800 mb-4">{`Ситуація ${currentIndex + 1}`}</h2>
+                    <div className="flex flex-wrap gap-6 justify-center">
                         {translateWaterLevel(currentScenario.waterLevel) && (
-                            <div className="flex flex-col items-center border p-2 rounded">
-                                <img
-                                    src={getWaterImage(currentScenario.waterLevel)}
-                                    alt={`water-${currentScenario.waterLevel}`}
-                                    className="w-24 h-24 mb-1"
-                                />
-                                <p className="text-sm">
-                                    {translateWaterLevel(currentScenario.waterLevel)}
-                                </p>
+                            <div className="flex flex-col items-center p-3 border rounded-lg">
+                                <img src={getWaterImage(currentScenario.waterLevel)} alt={`water-${currentScenario.waterLevel}`} className="w-20 h-20 mb-2" />
+                                <p className="text-sm font-medium text-indigo-700">{translateWaterLevel(currentScenario.waterLevel)}</p>
                             </div>
                         )}
-
                         {translateTempLevel(currentScenario.tempLevel) && (
-                            <div className="flex flex-col items-center border p-2 rounded">
-                                <img
-                                    src={getTempImage(currentScenario.tempLevel)}
-                                    alt={`temperature-${currentScenario.tempLevel}`}
-                                    className="w-24 h-24 mb-1"
-                                />
-                                <p className="text-sm">
-                                    {translateTempLevel(currentScenario.tempLevel)}
-                                </p>
+                            <div className="flex flex-col items-center p-3 border rounded-lg">
+                                <img src={getTempImage(currentScenario.tempLevel)} alt={`temperature-${currentScenario.tempLevel}`} className="w-20 h-20 mb-2" />
+                                <p className="text-sm font-medium text-indigo-700">{translateTempLevel(currentScenario.tempLevel)}</p>
                             </div>
                         )}
-
                         {translateSnowLevel(currentScenario.snowLevel) && (
-                            <div className="flex flex-col items-center border p-2 rounded">
-                                <img
-                                    src={getSnowImage(currentScenario.snowLevel)}
-                                    alt={`snow-${currentScenario.snowLevel}`}
-                                    className="w-24 h-24 mb-1"
-                                />
-                                <p className="text-sm">
-                                    {translateSnowLevel(currentScenario.snowLevel)}
-                                </p>
+                            <div className="flex flex-col items-center p-3 border rounded-lg">
+                                <img src={getSnowImage(currentScenario.snowLevel)} alt={`snow-${currentScenario.snowLevel}`} className="w-20 h-20 mb-2" />
+                                <p className="text-sm font-medium text-indigo-700">{translateSnowLevel(currentScenario.snowLevel)}</p>
                             </div>
                         )}
-
                         {translateRainLevel(currentScenario.rainLevel) && (
-                            <div className="flex flex-col items-center border p-2 rounded">
-                                <img
-                                    src={getRainImage(currentScenario.rainLevel)}
-                                    alt={`rain-${currentScenario.rainLevel}`}
-                                    className="w-24 h-24 mb-1"
-                                />
-                                <p className="text-sm">
-                                    {translateRainLevel(currentScenario.rainLevel)}
-                                </p>
+                            <div className="flex flex-col items-center p-3 border rounded-lg">
+                                <img src={getRainImage(currentScenario.rainLevel)} alt={`rain-${currentScenario.rainLevel}`} className="w-20 h-20 mb-2" />
+                                <p className="text-sm font-medium text-indigo-700">{translateRainLevel(currentScenario.rainLevel)}</p>
                             </div>
                         )}
                     </div>
                 </div>
             ) : (
-                <div className="bg-white shadow-md rounded p-4 mb-8">
-                    <h2 className="text-xl font-bold mb-2">Усі ситуації завершено</h2>
+                <div className="bg-white border border-indigo-200 rounded-lg shadow-lg p-6 mb-8 text-center">
+                    <h2 className="text-2xl font-bold text-indigo-800 mb-2">Усі ситуації завершено</h2>
                     <p className="text-gray-600">Натисніть "Play", щоб почати спочатку.</p>
                 </div>
             )}
-
-            <div className="bg-white shadow-md rounded p-4 mb-4">
-                <h2 className="text-xl font-bold mb-4">Висновки</h2>
-                <ul className="space-y-2">
-                    {conclusions.map((c) => {
+            <div className="bg-white border border-indigo-200 rounded-lg shadow-lg p-6 mb-8">
+                <h2 className="text-2xl font-bold text-indigo-800 mb-4">Висновки</h2>
+                <ul className="space-y-3">
+                    {conclusions.map(c => {
                         const colorClass = getStatusColor(c.status);
                         return (
-                            <li key={c.id} className="flex items-center">
-                <span
-                    className={`inline-block w-4 h-4 mr-2 rounded-full ${colorClass}`}
-                ></span>
-                                <p>
-                                    <strong>{c.name}:</strong> {c.status}
-                                </p>
+                            <li key={c.id} className="flex items-center border-l-4 pl-3 border-indigo-500">
+                                <span className={`inline-block w-4 h-4 mr-3 rounded-full ${colorClass}`}></span>
+                                <p className="text-lg font-medium text-indigo-800">{c.name}: {c.status}</p>
                             </li>
                         );
                     })}
                 </ul>
             </div>
-
-            <div className="bg-white shadow-md rounded p-4 mb-4">
-                <h2 className="text-xl font-bold mb-4">Прогрес симуляції</h2>
-                <div className="relative w-full h-4 bg-gray-300 rounded mb-2 overflow-hidden">
-                    <div
-                        className="absolute left-0 top-0 h-4 bg-blue-500"
-                        style={{
-                            width: `${progress}%`,
-                            transition: 'width 0.3s linear',
-                        }}
-                    />
+            <div className="bg-white border border-indigo-200 rounded-lg shadow-lg p-6">
+                <h2 className="text-2xl font-bold text-indigo-800 mb-4">Прогрес симуляції</h2>
+                <div className="relative w-full h-5 bg-gray-300 rounded-full overflow-hidden mb-3">
+                    <div className="absolute left-0 top-0 h-5 bg-indigo-600" style={{ width: `${progress}%`, transition: 'width 0.3s linear' }}></div>
                 </div>
-                <p className="text-center">{progress}%</p>
+                <p className="text-center text-lg font-semibold text-indigo-800">{progress}%</p>
             </div>
         </div>
     );
