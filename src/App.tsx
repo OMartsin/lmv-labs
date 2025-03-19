@@ -143,8 +143,9 @@ const App: React.FC = () => {
             }
         };
         drawAllBuses();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [bestCombo]);
+
+    const maxSize = busTypes.reduce((acc, bus) => acc + bus.kMax * bus.capacity, 0);
 
     return (
         <div className="max-w-[1300px] mx-auto p-4">
@@ -216,6 +217,11 @@ const App: React.FC = () => {
                             })}
                             </tbody>
                         </table>
+                    </div>
+                    <div className="flex flex-col pt-6">
+                        <div>
+                            Максимальна кількість пасажирів: {maxSize}
+                        </div>
                     </div>
                 </div>
             )}
