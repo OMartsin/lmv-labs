@@ -222,7 +222,7 @@ function optimizeTransport(
         totalCapacity += Kt * t.capacity;
     });
 
-    if (totalCapacity < Ncon) {
+    while (totalCapacity < Ncon) {
         const smallest = transportData.reduce((prev, curr) =>
             curr.capacity < prev.capacity ? curr : prev
         );
