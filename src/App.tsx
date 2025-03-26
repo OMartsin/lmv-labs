@@ -254,8 +254,7 @@ function optimizeTransport(
         totalCapacity += Kt * t.capacity;
     });
 
-    // Якщо отриманих місць не вистачає — додаємо 1 автобус найменшого типу
-    if (totalCapacity < Ncon) {
+    while (totalCapacity < Ncon) {
         const smallest = transportData.reduce((prev, curr) =>
             curr.capacity < prev.capacity ? curr : prev
         );
