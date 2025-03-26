@@ -1,9 +1,10 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState } from "react";
 
 interface BusType {
     id: number;
     name: string;
     capacity: number;
+    kMin: number;
     kMax: number;
     imageUrl: string;
 }
@@ -13,6 +14,7 @@ const busTypes: BusType[] = [
         id: 1,
         name: "Mercedes Sprinter",
         capacity: 12,
+        kMin: 1,
         kMax: 12,
         imageUrl: "/public/sprinter.png"
     },
@@ -20,6 +22,7 @@ const busTypes: BusType[] = [
         id: 2,
         name: "БАЗ «Волошка»",
         capacity: 15,
+        kMin: 1,
         kMax: 5,
         imageUrl: "/public/voloshka.png"
     },
@@ -27,6 +30,7 @@ const busTypes: BusType[] = [
         id: 3,
         name: "«Богдан» А-064",
         capacity: 17,
+        kMin: 1,
         kMax: 6,
         imageUrl: "/public/bogdan-a064.png"
     },
@@ -34,6 +38,7 @@ const busTypes: BusType[] = [
         id: 4,
         name: "AeroLAZ",
         capacity: 17,
+        kMin: 1,
         kMax: 8,
         imageUrl: "/public/aerolaz.png"
     },
@@ -41,6 +46,7 @@ const busTypes: BusType[] = [
         id: 5,
         name: "«Богдан» А-092",
         capacity: 18,
+        kMin: 1,
         kMax: 2,
         imageUrl: "/public/bogdan-a092.png"
     },
@@ -48,6 +54,7 @@ const busTypes: BusType[] = [
         id: 6,
         name: "«Богдан» А-091",
         capacity: 21,
+        kMin: 1,
         kMax: 5,
         imageUrl: "/public/bogdan-a091.png"
     },
@@ -55,6 +62,7 @@ const busTypes: BusType[] = [
         id: 7,
         name: "ЗАЗ A10C I-Ван",
         capacity: 23,
+        kMin: 1,
         kMax: 2,
         imageUrl: "/public/zaz.png"
     }
@@ -71,14 +79,8 @@ const App: React.FC = () => {
     const [error, setError] = useState<string>("");
     const [bestCombo, setBestCombo] = useState<BestCombination | null>(null);
 
-    const busWidth = 100;
-    const busHeight = 70;
-    const margin = 4;
-    const canvasWidth = 1230;
-
-    const [canvasHeight, setCanvasHeight] = useState<number>(250);
-
-    const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const minCapacity = busTypes.reduce((acc, bus) => acc + bus.kMin * bus.capacity, 0);
+    const maxCapacity = busTypes.reduce((acc, bus) => acc + bus.kMax * bus.capacity, 0);
 
     const handleCalculate = () => {
         setError("");
@@ -87,69 +89,18 @@ const App: React.FC = () => {
             setBestCombo(null);
             return;
         }
-        const result = findBestCombination(peopleCount, busTypes);
-        if (!result) {
-            setError("Неможливо перевезти таку кількість пасажирів із наявним транспортом.");
+        const result = optimizeTransport(peopleCount, busTypes);
+        if (typeof result === "string") {
+            setError(result);
             setBestCombo(null);
         } else {
             setBestCombo(result);
         }
     };
 
-    useEffect(() => {
-        if (!canvasRef.current) return;
-        const ctx = canvasRef.current.getContext("2d");
-        if (!ctx) return;
-
-        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-
-        if (!bestCombo) return;
-
-        const totalBusesUsed = bestCombo.combination.reduce((acc, c) => acc + c, 0);
-
-        const rowCapacity = Math.floor(canvasWidth / (busWidth + margin));
-        const lines = Math.ceil(totalBusesUsed / rowCapacity);
-        // Обчислюємо необхідну висоту (з урахуванням відступів)
-        const neededHeight = lines * (busHeight + margin) + margin;
-
-        // Обмежуємо висоту 250 px
-        const finalHeight = neededHeight > 250 ? neededHeight : 250;
-        setCanvasHeight(finalHeight);
-
-        // Очищаємо і перевстановлюємо розмір canvas
-        canvasRef.current.width = canvasWidth;
-        canvasRef.current.height = finalHeight;
-        ctx.clearRect(0, 0, canvasWidth, finalHeight);
-
-        let xPos = margin;
-        let yPos = margin;
-
-        // Малюємо всі автобуси
-        const drawAllBuses = async () => {
-            for (let i = 0; i < busTypes.length; i++) {
-                const countUsed = bestCombo.combination[i];
-                if (countUsed === 0) continue;
-
-                for (let c = 0; c < countUsed; c++) {
-                    const img = await loadImage(busTypes[i].imageUrl);
-                    ctx.drawImage(img, xPos, yPos, busWidth, busHeight);
-
-                    xPos += busWidth + margin;
-                    if (xPos + busWidth + margin > canvasWidth) {
-                        xPos = margin;
-                        yPos += busHeight + margin;
-                    }
-                }
-            }
-        };
-        drawAllBuses();
-    }, [bestCombo]);
-
-    const maxSize = busTypes.reduce((acc, bus) => acc + bus.kMax * bus.capacity, 0);
-
     return (
         <div className="max-w-[1300px] mx-auto p-4">
-            <h1 className="text-3xl font-bold mb-6">Оптимальний розподіл автобусів</h1>
+            <h1 className="text-3xl font-bold mb-6">Розрахунок логістичного ресурсу</h1>
 
             <div className="bg-white shadow rounded p-4 mb-4">
                 <label className="block text-lg font-semibold mb-2">
@@ -159,6 +110,9 @@ const App: React.FC = () => {
                     type="number"
                     value={peopleCount}
                     onChange={(e) => setPeopleCount(Number(e.target.value))}
+                    // додаємо перевірку в діапазоні [minCapacity, maxCapacity]
+                    min={minCapacity}
+                    max={maxCapacity}
                     className="border border-gray-300 rounded p-2 w-full mb-4"
                 />
                 <button
@@ -185,18 +139,12 @@ const App: React.FC = () => {
                         Залишилось порожніх місць: <strong>{bestCombo.leftover}</strong>
                     </p>
 
-                    <div
-                        className={`mb-4 ${canvasHeight > 250 ? "overflow-y-auto" : ""}`}
-                        style={{ width: canvasWidth, maxHeight: 250, border: "1px solid #ccc" }}
-                    >
-                        <canvas ref={canvasRef} />
-                    </div>
-
                     <div className="overflow-x-auto">
                         <table className="min-w-full border">
                             <thead className="bg-gray-100">
                             <tr>
                                 <th className="px-3 py-2 border">№</th>
+                                <th className="px-3 py-2 border">Ілюстрація</th>
                                 <th className="px-3 py-2 border">Тип автобуса</th>
                                 <th className="px-3 py-2 border">Використано автобусів</th>
                                 <th className="px-3 py-2 border">Сумарно зайнятих місць</th>
@@ -209,18 +157,31 @@ const App: React.FC = () => {
                                 return (
                                     <tr key={bus.id}>
                                         <td className="px-3 py-2 border">{i + 1}</td>
+                                        <td className="px-3 py-2 border">
+                                            <img
+                                                src={bus.imageUrl}
+                                                alt={bus.name}
+                                                style={{ width: "50px", height: "auto" }}
+                                            />
+                                        </td>
                                         <td className="px-3 py-2 border">{bus.name}</td>
                                         <td className="px-3 py-2 border">{countUsed}</td>
-                                        <td className="px-3 py-2 border">{countUsed * bus.capacity}</td>
+                                        <td className="px-3 py-2 border">
+                                            {countUsed * bus.capacity}
+                                        </td>
                                     </tr>
                                 );
                             })}
                             </tbody>
                         </table>
                     </div>
+
                     <div className="flex flex-col pt-6">
                         <div>
-                            Максимальна кількість пасажирів: {maxSize}
+                            Мінімальна кількість пасажирів: {minCapacity}
+                        </div>
+                        <div>
+                            Максимальна кількість пасажирів: {maxCapacity}
                         </div>
                     </div>
                 </div>
@@ -229,68 +190,55 @@ const App: React.FC = () => {
     );
 };
 
-function loadImage(src: string): Promise<HTMLImageElement> {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.src = src;
-        img.onload = () => resolve(img);
-        img.onerror = reject;
-    });
-}
+function optimizeTransport(
+    Ncon: number,
+    transportData: BusType[]
+): BestCombination | string {
+    const sumKmaxN = transportData.reduce((sum, t) => sum + t.capacity * t.kMax, 0);
+    const sumKminN = transportData.reduce((sum, t) => sum + t.capacity * t.kMin, 0);
 
-/**
- * Пошук оптимальної комбінації автобусів:
- * - Сумарна місткість >= peopleCount
- * - Мінімальний залишок місць
- * - При однаковому залишку – мінімальна кількість автобусів
- */
-function findBestCombination(
-    peopleCount: number,
-    busTypes: BusType[]
-): BestCombination | null {
-    let best: BestCombination | null = null;
-
-    const maxCounts = busTypes.map((b) => b.kMax);
-    const capacities = busTypes.map((b) => b.capacity);
-
-    function backtrack(
-        i: number,
-        used: number[],
-        seatsSoFar: number,
-        busesSoFar: number
-    ) {
-        if (i === busTypes.length) {
-            if (seatsSoFar >= peopleCount) {
-                const leftover = seatsSoFar - peopleCount;
-                if (
-                    !best ||
-                    leftover < best.leftover ||
-                    (leftover === best.leftover && busesSoFar < best.busesUsed)
-                ) {
-                    best = {
-                        leftover,
-                        busesUsed: busesSoFar,
-                        combination: [...used]
-                    };
-                }
-            }
-            return;
-        }
-
-        const limit = maxCounts[i];
-        const cap = capacities[i];
-
-        for (let count = 0; count <= limit; count++) {
-            used[i] = count;
-            const newSeats = seatsSoFar + count * cap;
-            const newBuses = busesSoFar + count;
-            backtrack(i + 1, used, newSeats, newBuses);
-            used[i] = 0;
-        }
+    if (Ncon > sumKmaxN) {
+        return `Помилка: Недостатньо транспорту! Макс. місткість: ${sumKmaxN}, потрібно: ${Ncon}`;
     }
 
-    backtrack(0, Array(busTypes.length).fill(0), 0, 0);
-    return best;
+    const denominator = Ncon - sumKminN;
+    if (denominator <= 0) {
+        return `Помилка: Ncon < суми мінімальних місткостей(${Ncon} < ${sumKminN}).\nПеревірте вхідні дані.`;
+    }
+
+    const p = (sumKmaxN - sumKminN) / denominator;
+    if (p <= 0) {
+        return `Помилка: Некоректне значення p (${p}). Перевірте вхідні дані.`;
+    }
+
+    let totalCapacity = 0;
+    const combination: number[] = [];
+
+    transportData.forEach((t) => {
+        const numerator = t.capacity * t.kMax + (p - 1) * t.capacity * t.kMin;
+        const Ki = numerator / p;
+        const Kt = Math.round(Ki / t.capacity);
+        combination.push(Kt);
+        totalCapacity += Kt * t.capacity;
+    });
+
+    if (totalCapacity < Ncon) {
+        const smallest = transportData.reduce((prev, curr) =>
+            curr.capacity < prev.capacity ? curr : prev
+        );
+        const index = transportData.findIndex((b) => b.id === smallest.id);
+        combination[index] += 1;
+        totalCapacity += smallest.capacity;
+    }
+
+    const leftover = totalCapacity - Ncon;
+    const busesUsed = combination.reduce((acc, val) => acc + val, 0);
+
+    return {
+        leftover,
+        busesUsed,
+        combination
+    };
 }
 
 export default App;
