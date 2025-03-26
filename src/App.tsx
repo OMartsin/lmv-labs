@@ -79,6 +79,7 @@ const App: React.FC = () => {
     const [error, setError] = useState<string>("");
     const [bestCombo, setBestCombo] = useState<BestCombination | null>(null);
 
+    // Мінімум і максимум для атрибутів min/max
     const minCapacity = busTypes.reduce((acc, bus) => acc + bus.kMin * bus.capacity, 0);
     const maxCapacity = busTypes.reduce((acc, bus) => acc + bus.kMax * bus.capacity, 0);
 
@@ -99,93 +100,124 @@ const App: React.FC = () => {
     };
 
     return (
-        <div className="max-w-[1300px] mx-auto p-4">
-            <h1 className="text-3xl font-bold mb-6">Розрахунок логістичного ресурсу</h1>
+        // Фон для сторінки
+        <div className="min-h-screen bg-gradient-to-br from-green-200 via-green-100 to-blue-200 p-6">
+            {/* Напівпрозорий білий блок */}
+            <div className="max-w-[1300px] mx-auto bg-white/80 backdrop-blur-md shadow-2xl rounded-xl p-8">
+                <h1 className="text-3xl font-bold mb-6 text-gray-800 text-center">
+                    Розрахунок логістичного ресурсу
+                </h1>
 
-            <div className="bg-white shadow rounded p-4 mb-4">
-                <label className="block text-lg font-semibold mb-2">
-                    Кількість людей, яких потрібно перевезти:
-                </label>
-                <input
-                    type="number"
-                    value={peopleCount}
-                    onChange={(e) => setPeopleCount(Number(e.target.value))}
-                    // додаємо перевірку в діапазоні [minCapacity, maxCapacity]
-                    min={minCapacity}
-                    max={maxCapacity}
-                    className="border border-gray-300 rounded p-2 w-full mb-4"
-                />
-                <button
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                    onClick={handleCalculate}
-                >
-                    Розрахувати
-                </button>
+                <div className="bg-white/70 shadow-md rounded p-4 mb-4">
+                    <label className="block text-lg font-semibold mb-2 text-gray-700">
+                        Кількість людей, яких потрібно перевезти:
+                    </label>
+                    <input
+                        type="number"
+                        value={peopleCount}
+                        onChange={(e) => setPeopleCount(Number(e.target.value))}
+                        min={minCapacity}
+                        max={maxCapacity}
+                        className="border border-gray-300 rounded p-2 w-full mb-4
+                                   focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    />
+                    <button
+                        className="px-4 py-2 rounded text-white
+                                   bg-gradient-to-r from-purple-500 to-indigo-500
+                                   hover:from-purple-600 hover:to-indigo-600
+                                   transition-colors duration-300 shadow-lg"
+                        onClick={handleCalculate}
+                    >
+                        Розрахувати
+                    </button>
+                </div>
+
+                {error && (
+                    <div className="bg-red-100 text-red-600 p-3 border border-red-400 rounded mb-4">
+                        {error}
+                    </div>
+                )}
+
+                {bestCombo && (
+                    <div className="bg-white/70 shadow-md rounded p-4">
+                        <h2 className="text-2xl font-bold mb-4 text-gray-800">
+                            Результати
+                        </h2>
+                        <p className="mb-2 text-gray-700">
+                            Використано автобусів:{" "}
+                            <strong>{bestCombo.busesUsed}</strong>
+                        </p>
+                        <p className="mb-2 text-gray-700">
+                            Залишилось порожніх місць:{" "}
+                            <strong>{bestCombo.leftover}</strong>
+                        </p>
+
+                        <div className="overflow-x-auto mt-4">
+                            {/**
+                             * Нова стилізація таблиці:
+                             * border-separate для відступів між клітинками,
+                             * border-spacing для відстаней,
+                             * закруглення в thead і hover-ефекти на рядках.
+                             */}
+                            <table
+                                className="min-w-full border-separate table-auto"
+                                style={{ borderSpacing: "0 1rem" }}
+                            >
+                                <thead>
+                                <tr className="bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 rounded-md">
+                                    <th className="px-4 py-3 text-left rounded-l-md">№</th>
+                                    <th className="px-4 py-3 text-left">Ілюстрація</th>
+                                    <th className="px-4 py-3 text-left">Тип автобуса</th>
+                                    <th className="px-4 py-3 text-center">Використано автобусів</th>
+                                    <th className="px-4 py-3 text-center rounded-r-md">
+                                        Сумарно зайнятих місць
+                                    </th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {busTypes.map((bus, i) => {
+                                    const countUsed = bestCombo.combination[i];
+                                    if (countUsed === 0) return null;
+                                    return (
+                                        <tr
+                                            key={bus.id}
+                                            className="bg-white shadow-sm hover:shadow-lg transition-shadow"
+                                        >
+                                            <td className="px-4 py-3 rounded-l-md">
+                                                {i + 1}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <img
+                                                    src={bus.imageUrl}
+                                                    alt={bus.name}
+                                                    className="w-12 h-auto mx-auto"
+                                                />
+                                            </td>
+                                            <td className="px-4 py-3">{bus.name}</td>
+                                            <td className="px-4 py-3 text-center">
+                                                {countUsed}
+                                            </td>
+                                            <td className="px-4 py-3 text-center rounded-r-md">
+                                                {countUsed * bus.capacity}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div className="flex flex-col pt-6 text-gray-700">
+                            <div>
+                                Мінімальна кількість пасажирів: <strong>{minCapacity}</strong>
+                            </div>
+                            <div>
+                                Максимальна кількість пасажирів: <strong>{maxCapacity}</strong>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
-
-            {error && (
-                <div className="bg-red-100 text-red-600 p-3 border border-red-400 rounded mb-4">
-                    {error}
-                </div>
-            )}
-
-            {bestCombo && (
-                <div className="bg-white shadow rounded p-4">
-                    <h2 className="text-2xl font-bold mb-4">Результати</h2>
-                    <p className="mb-2">
-                        Використано автобусів: <strong>{bestCombo.busesUsed}</strong>
-                    </p>
-                    <p className="mb-2">
-                        Залишилось порожніх місць: <strong>{bestCombo.leftover}</strong>
-                    </p>
-
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full border">
-                            <thead className="bg-gray-100">
-                            <tr>
-                                <th className="px-3 py-2 border">№</th>
-                                <th className="px-3 py-2 border">Ілюстрація</th>
-                                <th className="px-3 py-2 border">Тип автобуса</th>
-                                <th className="px-3 py-2 border">Використано автобусів</th>
-                                <th className="px-3 py-2 border">Сумарно зайнятих місць</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {busTypes.map((bus, i) => {
-                                const countUsed = bestCombo.combination[i];
-                                if (countUsed === 0) return null;
-                                return (
-                                    <tr key={bus.id}>
-                                        <td className="px-3 py-2 border">{i + 1}</td>
-                                        <td className="px-3 py-2 border">
-                                            <img
-                                                src={bus.imageUrl}
-                                                alt={bus.name}
-                                                style={{ width: "50px", height: "auto" }}
-                                            />
-                                        </td>
-                                        <td className="px-3 py-2 border">{bus.name}</td>
-                                        <td className="px-3 py-2 border">{countUsed}</td>
-                                        <td className="px-3 py-2 border">
-                                            {countUsed * bus.capacity}
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div className="flex flex-col pt-6">
-                        <div>
-                            Мінімальна кількість пасажирів: {minCapacity}
-                        </div>
-                        <div>
-                            Максимальна кількість пасажирів: {maxCapacity}
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };
@@ -203,7 +235,7 @@ function optimizeTransport(
 
     const denominator = Ncon - sumKminN;
     if (denominator <= 0) {
-        return `Помилка: Ncon < суми мінімальних місткостей(${Ncon} < ${sumKminN}).\nПеревірте вхідні дані.`;
+        return `Помилка: Ncon < суми мінімальних місткостей (${Ncon} < ${sumKminN}). Перевірте вхідні дані.`;
     }
 
     const p = (sumKmaxN - sumKminN) / denominator;
@@ -222,6 +254,7 @@ function optimizeTransport(
         totalCapacity += Kt * t.capacity;
     });
 
+    // Якщо отриманих місць не вистачає — додаємо 1 автобус найменшого типу
     if (totalCapacity < Ncon) {
         const smallest = transportData.reduce((prev, curr) =>
             curr.capacity < prev.capacity ? curr : prev
