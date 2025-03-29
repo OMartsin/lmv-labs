@@ -90,13 +90,18 @@ const App: React.FC = () => {
             setBestCombo(null);
             return;
         }
-        const result = optimizeTransport(peopleCount, busTypes);
-        if (typeof result === "string") {
-            setError(result);
+        const result = findBestCombination(peopleCount, busTypes);
+        if(minCapacity > peopleCount) {
+            setError(`Мінімальна кількість пасажирів: ${minCapacity}`);
             setBestCombo(null);
-        } else {
-            setBestCombo(result);
+            return;
         }
+        if(maxCapacity < peopleCount) {
+            setError(`Максимальна кількість пасажирів: ${maxCapacity}`);
+            setBestCombo(null);
+            return;
+        }
+        setBestCombo(result);
     };
 
     return (
@@ -222,55 +227,47 @@ const App: React.FC = () => {
     );
 };
 
-function optimizeTransport(
-    Ncon: number,
-    transportData: BusType[]
-): BestCombination | string {
-    const sumKmaxN = transportData.reduce((sum, t) => sum + t.capacity * t.kMax, 0);
-    const sumKminN = transportData.reduce((sum, t) => sum + t.capacity * t.kMin, 0);
-
-    if (Ncon > sumKmaxN) {
-        return `Помилка: Недостатньо транспорту! Макс. місткість: ${sumKmaxN}, потрібно: ${Ncon}`;
+function findBestCombination(
+    peopleCount: number,
+    busTypes: BusType[]
+): BestCombination | null {
+    let best: BestCombination | null = null;
+    const maxCounts = busTypes.map(b => b.kMax);
+    const minCounts = busTypes.map(b => b.kMin);
+    const capacities = busTypes.map(b => b.capacity);
+    function backtrack(i: number, used: number[], seatsSoFar: number, busesSoFar: number) {
+        if (i === busTypes.length) {
+            if (seatsSoFar >= peopleCount) {
+                const leftover = seatsSoFar - peopleCount;
+                if (
+                    !best ||
+                    leftover < best.leftover ||
+                    (leftover === best.leftover && busesSoFar < best.busesUsed)
+                ) {
+                    best = {
+                        leftover,
+                        busesUsed: busesSoFar,
+                        combination: [...used]
+                    };
+                }
+            }
+            return;
+        }
+        const cap = capacities[i];
+        const minCount = minCounts[i];
+        const maxCount = maxCounts[i];
+        for (let count = 0; count <= maxCount; count++) {
+            if (count > 0 && count < minCount) continue;
+            used[i] = count;
+            const newSeats = seatsSoFar + count * cap;
+            const newBuses = busesSoFar + count;
+            backtrack(i + 1, used, newSeats, newBuses);
+            used[i] = 0;
+        }
     }
-
-    const denominator = Ncon - sumKminN;
-    if (denominator <= 0) {
-        return `Помилка: Ncon < суми мінімальних місткостей (${Ncon} < ${sumKminN}). Перевірте вхідні дані.`;
-    }
-
-    const p = (sumKmaxN - sumKminN) / denominator;
-    if (p <= 0) {
-        return `Помилка: Некоректне значення p (${p}). Перевірте вхідні дані.`;
-    }
-
-    let totalCapacity = 0;
-    const combination: number[] = [];
-
-    transportData.forEach((t) => {
-        const numerator = t.capacity * t.kMax + (p - 1) * t.capacity * t.kMin;
-        const Ki = numerator / p;
-        const Kt = Math.round(Ki / t.capacity);
-        combination.push(Kt);
-        totalCapacity += Kt * t.capacity;
-    });
-
-    while (totalCapacity < Ncon) {
-        const smallest = transportData.reduce((prev, curr) =>
-            curr.capacity < prev.capacity ? curr : prev
-        );
-        const index = transportData.findIndex((b) => b.id === smallest.id);
-        combination[index] += 1;
-        totalCapacity += smallest.capacity;
-    }
-
-    const leftover = totalCapacity - Ncon;
-    const busesUsed = combination.reduce((acc, val) => acc + val, 0);
-
-    return {
-        leftover,
-        busesUsed,
-        combination
-    };
+    backtrack(0, Array(busTypes.length).fill(0), 0, 0);
+    return best;
 }
+
 
 export default App;
